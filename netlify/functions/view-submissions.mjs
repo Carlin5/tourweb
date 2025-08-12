@@ -1,70 +1,72 @@
-import fs from 'fs/promises';
-import path from 'path';
-
-const submissionsPath = path.resolve(process.cwd(), 'netlify', 'submissions.json');
-
-// WARNING: Hardcoded credentials. For a real application, use environment variables.
-const ADMIN_USERNAME = 'Admin';
-const ADMIN_PASSWORD = 'admin';
-
-async function getSubmissions() {
-  try {
-    await fs.access(submissionsPath);
-    const data = await fs.readFile(submissionsPath, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    if (error.code === 'ENOENT') {
-      return [];
-    }
-    throw error;
-  }
-}
-
 export const handler = async (event) => {
-  // Basic Auth Check
+  // Basic Authentication
   const authHeader = event.headers.authorization;
   if (!authHeader) {
     return {
       statusCode: 401,
+      body: JSON.stringify({ error: 'Unauthorized' }),
       headers: { 'WWW-Authenticate': 'Basic realm="Admin Area"' },
-      body: 'Unauthorized',
     };
   }
 
-  const [authType, credentials] = authHeader.split(' ');
-  if (authType !== 'Basic') {
-    return { statusCode: 401, body: 'Unauthorized' };
-  }
+  const credentials = Buffer.from(authHeader.split(' ')[1], 'base64').toString();
+  const [username, password] = credentials.split(':');
 
-  const decodedCreds = Buffer.from(credentials, 'base64').toString();
-  const [username, password] = decodedCreds.split(':');
-
-  if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+  // In a real app, use environment variables for credentials
+  if (username !== 'Admin' || password !== 'admin') {
     return {
       statusCode: 401,
-      body: 'Unauthorized',
+      body: JSON.stringify({ error: 'Invalid credentials' }),
     };
   }
 
-  if (event.httpMethod !== 'GET') {
+  // Fetch submissions from Netlify API
+  const { NETLIFY_API_TOKEN, SITE_ID } = process.env;
+
+  if (!NETLIFY_API_TOKEN || !SITE_ID) {
     return {
-      statusCode: 405,
-      body: 'Method Not Allowed',
+      statusCode: 500,
+      body: JSON.stringify({ error: 'Server configuration error: Missing API token or Site ID.' }),
     };
   }
+
+  const url = `https://api.netlify.com/api/v1/sites/${SITE_ID}/submissions`;
 
   try {
-    const submissions = await getSubmissions();
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${NETLIFY_API_TOKEN}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Netlify API Error: ${response.status} - ${errorBody}`);
+    }
+
+    const submissions = await response.json();
+
+    // Format the data for the frontend
+    const formattedSubmissions = submissions.map(sub => ({
+      id: sub.id,
+      name: sub.data.name,
+      email: sub.data.email,
+      phone: sub.data.phone || 'N/A',
+      country: sub.data.country || 'N/A',
+      message: sub.data.message,
+      submittedAt: sub.created_at,
+    }));
+
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(submissions.sort((a, b) => b.id - a.id)), // Show newest first
+      body: JSON.stringify(formattedSubmissions),
     };
+
   } catch (error) {
     console.error('Error fetching submissions:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'An internal server error occurred.' }),
+      body: JSON.stringify({ error: error.message }),
     };
   }
 };

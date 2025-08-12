@@ -25,32 +25,22 @@ const Contact: React.FC = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
 
-    try {
-      const response = await fetch('/api/submit-form', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+    const myForm = e.target as HTMLFormElement;
+    const formData = new FormData(myForm);
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Something went wrong');
-      }
-
-      setSuccess('Your message has been sent successfully! We will get back to you shortly.');
-      setFormData({ name: '', email: '', phone: '', country: '', message: '' });
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    fetch('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(formData as any).toString(),
+    })
+      .then(() => {
+        setSuccess('Your message has been sent successfully! We will get back to you shortly.');
+        setFormData({ name: '', email: '', phone: '', country: '', message: '' });
+      })
+      .catch((error) => setError(error.message));
   };
 
   return (
@@ -88,45 +78,71 @@ const Contact: React.FC = () => {
               <Typography variant="h4" component="h2" gutterBottom>
                 Send Us a Message
               </Typography>
-              <form onSubmit={handleSubmit}>
+              <form
+                name="contact"
+                method="POST"
+                data-netlify="true"
+                data-netlify-honeypot="bot-field"
+                onSubmit={handleSubmit}
+                style={{ width: '100%' }}
+              >
+                {/* Hidden input for Netlify's form handling */}
+                <input type="hidden" name="form-name" value="contact" />
+                <p hidden>
+                  <label>
+                    Don’t fill this out if you’re human: <input name="bot-field" />
+                  </label>
+                </p>
                 <Grid container spacing={2}>
                   <Grid item xs={12} sm={6}>
                     <TextField
+                      label="Name"
+                      variant="outlined"
                       fullWidth
                       required
-                      label="Full Name"
                       name="name"
+                      id="name"
                       value={formData.name}
                       onChange={handleChange}
+                      margin="normal"
                     />
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <TextField
+                      label="Email"
+                      variant="outlined"
                       fullWidth
                       required
-                      type="email"
-                      label="Email Address"
                       name="email"
+                      id="email"
+                      type="email"
                       value={formData.email}
                       onChange={handleChange}
+                      margin="normal"
                     />
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <TextField
-                      fullWidth
                       label="Phone Number"
+                      variant="outlined"
+                      fullWidth
                       name="phone"
+                      id="phone"
                       value={formData.phone}
                       onChange={handleChange}
+                      margin="normal"
                     />
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <TextField
-                      fullWidth
                       label="Country"
+                      variant="outlined"
+                      fullWidth
                       name="country"
+                      id="country"
                       value={formData.country}
                       onChange={handleChange}
+                      margin="normal"
                     />
                   </Grid>
                   <Grid item xs={12}>
